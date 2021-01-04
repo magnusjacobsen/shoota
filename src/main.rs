@@ -215,8 +215,8 @@ impl MainState {
 
         // move backwards if no wall behind
         if keyboard::is_key_pressed(ctx, KeyCode::S) {
-            let dx = self.pos.x - self.dir.x * 1.0;
-            let dy = self.pos.y - self.dir.y * 1.0;
+            let dx = self.pos.x - self.dir.x * MOVE_SPEED;
+            let dy = self.pos.y - self.dir.y * MOVE_SPEED;
             if WORLD[self.pos.y as usize][dx as usize] == 0 { self.pos.x = dx; }
             if WORLD[dy as usize][self.pos.y as usize] == 0 { self.pos.y = dy; }
         }
