@@ -1,4 +1,4 @@
-#![windows_subsystem = "windows"]
+//#![windows_subsystem = "windows"]
 use ggez;
 use ggez::event::{self, EventHandler, KeyCode};
 use ggez::timer;
@@ -167,7 +167,9 @@ impl MainState {
             for y in (draw_start as usize)..(draw_end as usize) {
                 for i in 0..4 {
                     let buffer_index = y * SCREEN_WIDTH * 4 + x * 4 + i;
-                    buffer[buffer_index] = color[i];
+                    if buffer_index < buffer.len() {
+                        buffer[buffer_index] = color[i];
+                    }
                 }
             }
 
@@ -209,14 +211,22 @@ impl MainState {
         if keyboard::is_key_pressed(ctx, KeyCode::W) {
             let dx = self.pos.x + self.dir.x * MOVE_SPEED;
             let dy = self.pos.y + self.dir.y * MOVE_SPEED;
-            if WORLD[self.pos.y as usize][dx as usize] == 0 { self.pos.x = dx; }
-            if WORLD[dy as usize][self.pos.x as usize] == 0 { self.pos.y = dy; }
+            println!("dx: {}, dx.floor() as usize: {}, dy: {}, dy.floor() as usize: {}", dx, dx.floor() as usize, dy, dy.floor() as usize);
+            if WORLD[self.pos.y.floor() as usize][dx.floor() as usize] == 0 { 
+                println!("updated x: {} to dx: {}", self.pos.x, dx);
+                self.pos.x = dx;
+            }
+            if WORLD[dy.floor() as usize][self.pos.x.floor() as usize] == 0 { 
+                println!("updated y: {} to dy: {}", self.pos.y, dy);
+                self.pos.y = dy; 
+            }
         }
 
         // move backwards if no wall behind
         if keyboard::is_key_pressed(ctx, KeyCode::S) {
             let dx = self.pos.x - self.dir.x * MOVE_SPEED;
             let dy = self.pos.y - self.dir.y * MOVE_SPEED;
+            println!("dx: {}, dy: {}", dx, dy);
             if WORLD[self.pos.y as usize][dx as usize] == 0 { self.pos.x = dx; }
             if WORLD[dy as usize][self.pos.y as usize] == 0 { self.pos.y = dy; }
         }
@@ -224,6 +234,7 @@ impl MainState {
         // rotate right
         if keyboard::is_key_pressed(ctx, KeyCode::D) {
             // both camera direction and plane must be rotated
+            println!("rotating right");
             let old_dir_x = self.dir.x;
             self.dir.x = self.dir.x * (-ROTATE_SPEED).cos() - self.dir.y * (-ROTATE_SPEED).sin();
             self.dir.y = old_dir_x * (-ROTATE_SPEED).sin() + self.dir.y * (-ROTATE_SPEED).cos();
@@ -235,6 +246,7 @@ impl MainState {
         // rotate left
         if keyboard::is_key_pressed(ctx, KeyCode::A) {
             // both camera direction and plane must be rotated
+            println!("rotating left");
             let old_dir_x = self.dir.x;
             self.dir.x = self.dir.x * ROTATE_SPEED.cos() - self.dir.y * ROTATE_SPEED.sin();
             self.dir.y = old_dir_x * ROTATE_SPEED.sin() + self.dir.y * ROTATE_SPEED.cos();
