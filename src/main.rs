@@ -1,14 +1,11 @@
 //#![windows_subsystem = "windows"]
 use ggez;
 use ggez::event::{self, EventHandler, KeyCode};
-use ggez::timer;
 use ggez::graphics::{self, Image};
-use ggez::{Context, GameResult};
+use ggez::{Context, GameResult, timer, GameError};
 use ggez::conf::WindowMode;
 use ggez::input::mouse::{self, MouseButton};
 use ggez::input::keyboard;
-use ggez::nalgebra as na;
-use ggez::mint;
 
 use std::path;
 use std::env;
@@ -59,11 +56,11 @@ const COLOR_YELLOW_BRIGHT: [u8; 4] = [255, 255, 0, 255];
 const COLOR_YELLOW_DARK: [u8; 4] = [128, 128, 0, 255];
 
 struct MainState {
-    pos: na::Point2<f64>,
-    dir: na::Vector2<f64>,
-    plane: na::Vector2<f64>,
+    pos: glam::Vec2,
+    dir: glam::Vec2,
+    plane: glam::Vec2,
     image: Image,
-    mouse_position: Option<mint::Point2<f32>>,
+    mouse_position: Option<glam::Vec2>,
 }
 
 impl MainState {
@@ -72,9 +69,9 @@ impl MainState {
         let image = Image::from_rgba8(ctx, SCREEN_WIDTH as u16, SCREEN_HEIGHT as u16, &buffer)?;
 
         Ok( MainState {
-            pos: na::Point2::new(22.0, 12.0),
-            dir: na::Vector2::new(-1.0, 0.0),
-            plane: na::Vector2::new(0.0, 0.66),
+            pos: glam::Vec2::new(22.0, 12.0),
+            dir: glam::Vec2::new(-1.0, 0.0),
+            plane: glam::Vec2::new(0.0, 0.66),
             image,
             mouse_position: None,
         })
@@ -86,13 +83,13 @@ impl MainState {
 
         for x in 0..SCREEN_WIDTH {
             // calculate ray position and direction
-            let camera_x = 2.0 * x as f64 / SCREEN_WIDTH as f64 - 1.0; // x-coordinate in camera space
+            let camera_x = 2.0 * x as f32 / SCREEN_WIDTH as f32 - 1.0; // x-coordinate in camera space
             let ray_dir_x = self.dir.x + self.plane.x * camera_x;
             let ray_dir_y = self.dir.y + self.plane.y * camera_x;
             
             // which box of the world we're in
-            let mut map_x = self.pos.x;
-            let mut map_y = self.pos.y;
+            let mut map_x: i32 = self.pos.x as i32;
+            let mut map_y: i32 = self.pos.y as i32;
 
             // length of ray from on x or y-side to next x or y-side
             let delta_dist_x = if !ray_dir_y.is_normal() { 0.0 } else { if !ray_dir_x.is_normal() { 1.0 } else { (1.0 / ray_dir_x).abs() }};
@@ -101,14 +98,14 @@ impl MainState {
             // step:       what direction to step in x or y-direction (either 1 or -1)
             // side_dist:  length of ray from current position to next x or y-side
             let (step_x, mut side_dist_x) = if ray_dir_x < 0.0 {
-                (-1.0, (self.pos.x - map_x) as f64 * delta_dist_x)
+                (-1, (self.pos.x - map_x as f32) * delta_dist_x)
             } else {
-                (1.0, (map_x + 1.0 - self.pos.x) as f64 * delta_dist_x)
+                (1, (map_x as f32 + 1.0 - self.pos.x) * delta_dist_x)
             };
             let (step_y, mut side_dist_y) = if ray_dir_y < 0.0 {
-                (-1.0, (self.pos.y - map_y) as f64 * delta_dist_y)
+                (-1, (self.pos.y - map_y as f32) * delta_dist_y)
             } else {
-                (1.0, (map_y + 1.0 - self.pos.y) as f64 * delta_dist_y)
+                (1, (map_y as f32 + 1.0 - self.pos.y) * delta_dist_y)
             };
 
             let mut hit = false; // was there a wall hit?
@@ -135,13 +132,13 @@ impl MainState {
 
             // calculate distance projected on camera direction (Euclidean distance will give fisheye effect!)
             let perp_wall_dist = if north_south {
-                (map_y - self.pos.y + (1.0 - step_y) / 2.0) / ray_dir_y
+                (map_y as f32 - self.pos.y + (1.0 - step_y as f32) / 2.0) / ray_dir_y
             } else {
-                (map_x - self.pos.x + (1.0 - step_x) / 2.0) / ray_dir_x
+                (map_x as f32 - self.pos.x + (1.0 - step_x as f32) / 2.0) / ray_dir_x
             };
 
             // calculate height of line to draw on screen
-            let line_height = (SCREEN_HEIGHT as f64 / perp_wall_dist) as i64;
+            let line_height = (SCREEN_HEIGHT as f32 / perp_wall_dist) as i64;
             let h = SCREEN_HEIGHT as i64;
 
             // calculate lowest and highest pixel to fill in current stripe
@@ -182,18 +179,18 @@ impl MainState {
         Ok(())
     }
 
-    fn mouse_motion_event(&mut self, ctx: &mut Context) {
+    fn mouse_motion_event(&mut self, ctx: &mut Context) -> GameResult {
         let is_pressed = mouse::button_pressed(ctx, MouseButton::Left);
-        let current_pos = mouse::position(ctx);
+        let current_pos: glam::Vec2 = mouse::position(ctx).into();
         if is_pressed {
             if let Some(m_pos) = self.mouse_position {
-                let diff = mint::Point2 {x: m_pos.x - current_pos.x, y: m_pos.y - current_pos.y};
+                let diff = glam::Vec2::new(m_pos.x - current_pos.x, m_pos.y - current_pos.y);
                 if diff.x != 0.0 || diff.y != 0.0 {
                     let window = graphics::window(ctx);
-                    let mut window_pos = window.get_position().unwrap();
-                    window_pos.x -= diff.x as f64;
-                    window_pos.y -= diff.y as f64;
-                    window.set_position(window_pos);
+                    let mut window_pos = graphics::get_window_position(ctx)?;
+                    window_pos.x -= diff.x as i32;
+                    window_pos.y -= diff.y as i32;
+                    graphics::set_window_position(ctx, window_pos)?;
                 }
             } else {
                 self.mouse_position = Some(current_pos)
@@ -201,11 +198,12 @@ impl MainState {
         } else {
             self.mouse_position = None;
         }
+        Ok(())
     }
 
     fn key_event(&mut self, ctx: &mut Context) {
-        const MOVE_SPEED: f64 = 5.0 / DESIRED_FPS as f64;
-        const ROTATE_SPEED: f64 = 3.0 / DESIRED_FPS as f64;
+        const MOVE_SPEED: f32 = 5.0 / DESIRED_FPS as f32;
+        const ROTATE_SPEED: f32 = 3.0 / DESIRED_FPS as f32;
 
         // move forward if no wall in front of player
         if keyboard::is_key_pressed(ctx, KeyCode::W) {
@@ -257,10 +255,10 @@ impl MainState {
     }
 }
 
-impl EventHandler for MainState {
+impl EventHandler<GameError> for MainState {
     fn update(&mut self, ctx: &mut Context) -> GameResult {
         while timer::check_update_time(ctx, DESIRED_FPS) {
-            self.mouse_motion_event(ctx);
+            self.mouse_motion_event(ctx)?;
             self.key_event(ctx);
             let buffer = self.raycast();
             self.update_image(buffer, ctx)?;
@@ -273,7 +271,7 @@ impl EventHandler for MainState {
         graphics::draw(
             ctx,
             &self.image,
-            (na::Point2::new(0.0, 0.0,),))?;
+            (glam::Vec2::new(0.0, 0.0,),))?;
 
         graphics::present(ctx)?;
         Ok(())
@@ -296,10 +294,10 @@ fn main() -> GameResult {
         cb = cb.add_resource_path(path);
     }
 
-    let (ctx, event_loop) = &mut cb.build()?;
-    graphics::set_window_title(ctx, "shoota - final showdown with cow & pig");
-    mouse::set_cursor_hidden(ctx, true);
+    let (mut ctx, event_loop) = cb.build()?;
+    graphics::set_window_title(&ctx, "shoota - final showdown with cow & pig");
+    mouse::set_cursor_hidden(&mut ctx, true);
 
-    let state = &mut MainState::new(ctx)?;
+    let mut state = MainState::new(&mut ctx)?;
     event::run(ctx, event_loop, state)
 }
